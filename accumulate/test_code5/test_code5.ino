@@ -1,3 +1,4 @@
+
 //--------------------Initialization and Libraries for SD card breakout--------------
 #include <SD.h>
 #include<SPI.h>
@@ -21,7 +22,8 @@ String file_number ;
 //int32_t y =11;
 //------------------------Initialization of sensor and relay
 float sensorReading = 0; // Sensor value from analog pin "A0"
-int Relay = A1; //relay is connected to analog pin "A1"
+int Relay = A1; //relay is connected to
+ //analog pin "A1"
 
 //-------------------Initilization for button-------------------------------------
 #define BUTTON_PIN1 2
@@ -82,6 +84,13 @@ double Kp=0, Ki=10, Kd=0;
  
 //create PID instance 
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
+//------------------------TEMP SENSOR--------------
+#include <Adafruit_MAX31865.h>
+// Use software SPI: CS, DI, DO, CLK
+Adafruit_MAX31865 thermo = Adafruit_MAX31865(32, 30, 28, 26);
+#define RREF      430.0
+#define RNOMINAL  100.0
+float val;
 
 //----------------------SETUP-----------------------------------------------------------------------------------------------------------------------------------------------
 void setup() {
@@ -91,8 +100,8 @@ void setup() {
   if (!SD.begin(CSpin)) {
 //Serial.println("Card failed, or not present");
 // don't do anything more:
-return;
-}
+  return;
+  }
 //Serial.println("card initialized.");
   //---------for PID--------
   Setpoint = 350;
@@ -102,7 +111,7 @@ return;
   myPID.SetTunings(Kp, Ki, Kd);
   
   // ------for LCD---------------
- Config_Init();
+  Config_Init();
   LCD_Init();
   LCD_Clear(0xffff);
   Paint_NewImage(LCD_WIDTH, LCD_HEIGHT, 0, GRAY);
@@ -133,6 +142,10 @@ Serial.println("card initialized.");
   delay(2000);
 //Paint_DrawString_EN(120, 215, "Set reqd Temp..", &Font16,MAGENTA, WHITE);
   prev_clocktime = millis();
+  //---------------------TEMP SENSOR-----------
+  Serial.begin(115200);
+  Serial.println("Adafruit MAX31865 PT100 Sensor Test!");
+  thermo.begin(MAX31865_3WIRE);  // set to 2WIRE or 4WIRE as necessary
   //------------------file count read-------
   countFile = SD.open("count.txt");
   if (countFile){
@@ -151,12 +164,20 @@ Serial.println("card initialized.");
     countFile.close();
   }
   fileNameString = "DATA_"+String(file_number)+".csv";
+  Paint_DrawString_EN(220, 10, "F:(" , &Font20,GRAY, WHITE);
+  Paint_DrawNum(258, 10, temporary-1 , &Font20,GRAY, WHITE);
+  Paint_DrawString_EN(300, 10, ")" , &Font20,GRAY, WHITE);
 }
 //-------------------------------------------------------------LOOP------------------------------------------------------------------------------------------------------------
 void loop() {
-  sensorReading = analogRead(A0);
+  //----temperature sensor-----
+  uint16_t rtd = thermo.readRTD();
+  Serial.print("RTD value: "); Serial.println(rtd);
+  float ratio = rtd;
+  ratio /= 32768;
+  sensorReading = thermo.temperature(RNOMINAL, RREF);;
   LCD_ClearWindow(100, 90, 100, 240, GRAY);
-  Paint_DrawFloatNum(100, 90, sensorReading,0 , &Font24, BROWN , WHITE);
+  Paint_DrawFloatNum(100, 90, sensorReading,1 , &Font24, BROWN , WHITE);
 
   if (buttonState == 1){
   set_temp();
@@ -170,31 +191,33 @@ void loop() {
     set_temp();
   }*/
   //--------------PID control of Relay-----
-  Input = map(analogRead(A0), 0, 1024, 0, 1024);  // photo senor is set on analog pin 5
+  Input = map(sensorReading, 0, 1024, 0, 1024);  //  senor is set on analog pin 0
   //PID calculation
   myPID.Compute();
   //Write the output as calculated by the PID function
   analogWrite(A1,Output); 
   //---------------------------
+  //LCD_ClearWindow(120, 215, 320, 240, GRAY);
+  //Paint_DrawString_EN(120, 215, OUTPUT, &Font20,MAGENTA, WHITE);
 
-  if (Output == HIGH){ 
+  if (sensorReading < l/10 ){ 
     //write current temp.
     LCD_ClearWindow(100, 90, 190, 110, GRAY);
     Paint_DrawFloatNum(100, 90, sensorReading,1, &Font24,BROWN, WHITE);
     //write status
-    LCD_ClearWindow(120, 215, 320, 240, GRAY);
-    Paint_DrawString_EN(120, 215, "Increasing", &Font20,MAGENTA, WHITE);
+    LCD_ClearWindow(150, 215, 320, 240, GRAY);
+    Paint_DrawString_EN(120, 215, "Inc", &Font20,MAGENTA, WHITE);
     //dataString = String(sensorReading); // convert to CSV
     //saveData(); // save to SD card
     
     }
-    else if (Output == LOW){
+    else if (sensorReading > l/10){
       LCD_ClearWindow(100, 90, 300, 120, GRAY);
       Paint_DrawFloatNum(100, 90, sensorReading,1 , &Font24,BROWN, WHITE);
       LCD_ClearWindow(100, 215, 320, 270, GRAY);
-      Paint_DrawString_EN(120, 215, "Decreasing", &Font20,MAGENTA, WHITE);
+      Paint_DrawString_EN(120, 215, "Dec", &Font20,MAGENTA, WHITE);
     }
-    else{
+    else if (sensorReading == l/10){
       LCD_ClearWindow(150, 215, 320, 240, GRAY);
     Paint_DrawString_EN(150, 215, "Equal", &Font20,MAGENTA, WHITE);
     }
@@ -239,7 +262,9 @@ void set_temp(){
       Paint_DrawNum(140, 170, c , &Font24,BLUE, WHITE);
       Paint_DrawString_EN(153, 170, ".", &Font20,BLUE, WHITE);
       Paint_DrawNum(164, 170, d , &Font24,BLUE, WHITE);
-      
+      if ((place > 1) && (place <5)){
+        yellow_under(place);
+      }
       /*
       Paint_DrawLine(100, 200, 117, 200, YELLOW,   DOT_PIXEL_2X2,LINE_STYLE_SOLID); // line at bottom to indicate "a"
       delay(500);
@@ -254,14 +279,15 @@ void set_temp(){
       */
 
       if ( place == 1){ 
-        if (yValue <260){// If we move UP in joystick
+        if (yValue <270){// If we move UP in joystick
           a=a+1;
           if(a>9){
             a=0;
           }
           Paint_DrawNum(100, 170, a , &Font24,BLUE, WHITE);
+          yellow_under(place);
         }
-        else if (yValue > 760){
+        else if (yValue > 750){
           a = a-1;
           if(a<0){
             a=9;
@@ -271,7 +297,7 @@ void set_temp(){
         
       }
       else if (place ==2){
-        if (yValue <260){// If we move UP in joystick
+        if (yValue <270){// If we move UP in joystick
           b=b+1;
           if(b>9){
             b=0;
@@ -279,7 +305,7 @@ void set_temp(){
           Paint_DrawNum(120, 170, b , &Font24,BLUE, WHITE);
           
         }
-        else if (yValue > 760){
+        else if (yValue > 750){
           b = b-1;
           if (b<0){
             b=9;
@@ -289,7 +315,7 @@ void set_temp(){
         }
       }
       else if (place ==3){
-        if (yValue <260){// If we move UP in joystick
+        if (yValue <270){// If we move UP in joystick
           c=c+1;
           if (c>9){
             c=0;
@@ -297,7 +323,7 @@ void set_temp(){
           Paint_DrawNum(140, 170, c , &Font24,BLUE, WHITE);
           
         }
-        else if (yValue > 760){
+        else if (yValue > 750){
           c = c-1;
           if (c<0){
             c=9;
@@ -307,7 +333,7 @@ void set_temp(){
         }
       }
       else if (place ==4){
-        if (yValue <260){// If we move UP in joystick
+        if (yValue <270){// If we move UP in joystick
           d=d+1;
           if (d>9){
             d=0;
@@ -315,7 +341,7 @@ void set_temp(){
           Paint_DrawNum(164, 170, d , &Font24,BLUE, WHITE);
           
         }
-        else if (yValue > 760){
+        else if (yValue > 750){
           d = d-1;
           if (d<0){
             d=9;
@@ -325,7 +351,7 @@ void set_temp(){
         }
       }
       
-      if ((xValue>750) && (yValue <510)){ // move right
+      if ((xValue>750) /*&& (yValue <510)*/){ // move right
         place = place+1;
         if (place > 4){
           place = 4;
@@ -339,7 +365,7 @@ void set_temp(){
         //previousXs = xs;
         //previousXe = xe;
       }
-      else if((xValue<245) && (yValue >495)){ // move left
+      else if((xValue<275) /*&& (yValue >495)*/){ // move left
         place = place-1;
         if (place <1){
           place = 1;
@@ -378,12 +404,20 @@ void set_temp(){
 }
 
 //------------------------function for START SCREEN ------------------------
+void yellow_under(int place){
+  int xs = currentXs+(20*place);
+  int xe = currentXe + (20*place);
+  LCD_ClearWindow(97, 195, 320, 205, GRAY);
+  Paint_DrawLine(xs, 200, xe, 200, YELLOW,   DOT_PIXEL_2X2,LINE_STYLE_SOLID);
+
+}
+
 void start_screen(){
-  Paint_DrawString_EN(20, 10, "TEMPERATURE in 'C ", &Font24,GRAY, WHITE);
+  Paint_DrawString_EN(20, 10, "TEMP in 'C ", &Font24,GRAY, WHITE);
   Paint_DrawLine(0, 40, 320, 40, BLACK,   DOT_PIXEL_2X2,LINE_STYLE_SOLID);
-  Paint_DrawString_EN(20, 60, "Current temperature:", &Font20,GRAY, WHITE);
+  Paint_DrawString_EN(20, 60, "Current temp:", &Font20,GRAY, WHITE);
   Paint_DrawLine(0, 125, 320, 125, BLACK,   DOT_PIXEL_2X2,LINE_STYLE_SOLID);
-  Paint_DrawString_EN(20, 140, "Set temperature:", &Font20,GRAY, WHITE);
+  Paint_DrawString_EN(20, 140, "Set temp:", &Font20,GRAY, WHITE);
   Paint_DrawLine(0, 200, 320, 200, BLACK,   DOT_PIXEL_2X2,LINE_STYLE_SOLID);
   Paint_DrawString_EN(20, 215, "Status:", &Font20,GRAY, WHITE);
 }
@@ -397,14 +431,14 @@ void set_temp_screen(){
   //Paint_DrawString_EN(20, 60, "Current temperature:", &Font20,GRAY, WHITE);
   //set temperature window
   Paint_DrawLine(0, 125, 320, 125, GREEN,   DOT_PIXEL_2X2,LINE_STYLE_SOLID);
-  Paint_DrawString_EN(20, 140, "Set temperature:", &Font20,GRAY, WHITE);
+  Paint_DrawString_EN(20, 140, "Set temp:", &Font20,GRAY, WHITE);
   //-----window for STATUS
   LCD_ClearWindow(0, 195, 320, 205, GRAY);
   Paint_DrawLine(0, 210, 320, 210, GREEN,   DOT_PIXEL_2X2,LINE_STYLE_SOLID);
   Paint_DrawString_EN(20, 215, "Status:", &Font20,GRAY, WHITE);
   // writing "Setting Temp....." in the status of the screen
   LCD_ClearWindow(150, 215, 320, 240, GRAY);
-  Paint_DrawString_EN(120, 215, "Setting Temp..", &Font20,MAGENTA, WHITE);
+  Paint_DrawString_EN(120, 215, "Setting", &Font20,MAGENTA, WHITE);
 }
 
 //--------------------------function for BUTTON1 VALUE INCREMENT ----------------------
@@ -460,9 +494,9 @@ void saveData(){
     sensorData.print("\n");
     sensorData.print(dataString);
     sensorData.print("\t");
-    sensorData.print(millis());
-    sensorData.print("\t");
     sensorData.print(setString);
+    sensorData.print("\t");
+    sensorData.print(millis());
     //sensorData.print("\t");
    // sensorData.print(file_number);
     sensorData.close(); // close the file
