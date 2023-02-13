@@ -27,12 +27,13 @@ int Relay = A1; //relay is connected to
 
 //-------------------Initilization for button-------------------------------------
 #define BUTTON_PIN1 2
-#define BUTTON_PIN2 5
+#define BUTTON_PIN2 3
 int bCount = 0;
 bool bToggle = 0;
 int temp =0;
 float l = 0;
 volatile int buttonState = 0;
+volatile int buttonState2 = 0;
 volatile int prevbuttonState = 0;
 //------------------Initialization of clock time--------
 //unsigned long curr_locktime;
@@ -44,7 +45,7 @@ int currentXs= 80; //current xcoordinate start
 int currentXe= 97; //current xcoordinate start
 int previousXs= 140; //previous xcoordinate start
 int previousXe= 157; //previous xcoordinate start
-volatile int x = 0;
+//volatile int x = 0;
 volatile int y = 0;
 int a=0;
 int b=0;
@@ -57,21 +58,23 @@ int bValue = 0 ;
 
 void button_press1(){
   if (buttonState == 0){
-    prevbuttonState = buttonState;
+    //prevbuttonState = buttonState;
     buttonState = buttonState + 1;
-    x = buttonState-prevbuttonState;
+    //x = buttonState-prevbuttonState;
   }
   else if (buttonState == 1){
-    prevbuttonState = buttonState;
+    //prevbuttonState = buttonState;
     buttonState = buttonState - 1;
-    x = buttonState-prevbuttonState;
+    //x = buttonState-prevbuttonState;
   }
-  /*
-  if((x+(buttonState-prevbuttonState) ==-2)){
-      fileNameString = "data"+String(newName)+".csv";
-      newName++;
-    }
-    */
+}
+void button_press2(){
+  if (buttonState2 == 0){
+    buttonState2 = buttonState2 + 1;
+  }
+  else if (buttonState2 == 1){
+    buttonState2 = buttonState2 - 1;
+  }
 }
 //-----------------------PID------------------
 #include <PID_v1.h>
@@ -87,8 +90,8 @@ PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 //------------------------TEMP SENSOR--------------
 #include <Adafruit_MAX31865.h>
 // Use software SPI: CS, DI, DO, CLK
-Adafruit_MAX31865 thermo = Adafruit_MAX31865(32, 30, 28, 26);
-#define RREF      430.0
+Adafruit_MAX31865 thermo = Adafruit_MAX31865(5, 12, 11,10);
+#define RREF      4320.0
 #define RNOMINAL  100.0
 float val;
 
@@ -104,7 +107,7 @@ void setup() {
   }
 //Serial.println("card initialized.");
   //---------for PID--------
-  Setpoint = 350;
+  //Setpoint = 350;
   //Turn the PID on
   myPID.SetMode(AUTOMATIC);
   //Adjust PID values
@@ -137,6 +140,7 @@ Serial.println("card initialized.");
   pinMode(BUTTON_PIN1, INPUT_PULLUP);
   pinMode(BUTTON_PIN2, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(BUTTON_PIN1), button_press1, RISING);
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN2), button_press2, RISING);
   //--------------for Relay ----------------
   pinMode(Relay, OUTPUT);
   delay(2000);
@@ -145,7 +149,7 @@ Serial.println("card initialized.");
   //---------------------TEMP SENSOR-----------
   Serial.begin(115200);
   Serial.println("Adafruit MAX31865 PT100 Sensor Test!");
-  thermo.begin(MAX31865_3WIRE);  // set to 2WIRE or 4WIRE as necessary
+  thermo.begin(MAX31865_4WIRE);  // set to 2WIRE or 4WIRE as necessary
   //------------------file count read-------
   countFile = SD.open("count.txt");
   if (countFile){
@@ -182,6 +186,25 @@ void loop() {
   if (buttonState == 1){
   set_temp();
   }
+
+  if (buttonState2 ==0){
+    while(1){
+      LCD_ClearWindow(150, 215, 320, 240, GRAY);
+      Paint_DrawString_EN(120, 215, "Pause", &Font20,MAGENTA, WHITE);
+      // set the relay to OFF
+      analogWrite(A1,LOW);
+      // Update the current temperature
+      LCD_ClearWindow(100, 90, 300, 120, GRAY);
+      Paint_DrawFloatNum(100, 90, sensorReading,1 , &Font24,BROWN, WHITE);
+      // and also write header for columns in .csv file (in SD card)
+      if (buttonState == 1){
+        set_temp();
+      }
+      if(buttonState2 == 1){
+        break;
+      }
+    }
+  }
   //Serial.print(buttonState);
     /*
   press_button1();
@@ -191,7 +214,8 @@ void loop() {
     set_temp();
   }*/
   //--------------PID control of Relay-----
-  Input = map(sensorReading, 0, 1024, 0, 1024);  //  senor is set on analog pin 0
+  Setpoint = temp;
+  Input = map(sensorReading, 0, 1024, 0, 1024);  //  sensor is set on analog pin 0
   //PID calculation
   myPID.Compute();
   //Write the output as calculated by the PID function
@@ -206,7 +230,7 @@ void loop() {
     Paint_DrawFloatNum(100, 90, sensorReading,1, &Font24,BROWN, WHITE);
     //write status
     LCD_ClearWindow(150, 215, 320, 240, GRAY);
-    Paint_DrawString_EN(120, 215, "Inc", &Font20,MAGENTA, WHITE);
+    Paint_DrawString_EN(120, 215, "Increasing", &Font20,MAGENTA, WHITE);
     //dataString = String(sensorReading); // convert to CSV
     //saveData(); // save to SD card
     
@@ -215,7 +239,7 @@ void loop() {
       LCD_ClearWindow(100, 90, 300, 120, GRAY);
       Paint_DrawFloatNum(100, 90, sensorReading,1 , &Font24,BROWN, WHITE);
       LCD_ClearWindow(100, 215, 320, 270, GRAY);
-      Paint_DrawString_EN(120, 215, "Dec", &Font20,MAGENTA, WHITE);
+      Paint_DrawString_EN(120, 215, "Decreasing", &Font20,MAGENTA, WHITE);
     }
     else if (sensorReading == l/10){
       LCD_ClearWindow(150, 215, 320, 240, GRAY);
@@ -279,13 +303,14 @@ void set_temp(){
       */
 
       if ( place == 1){ 
+        yellow_under(place);
         if (yValue <270){// If we move UP in joystick
           a=a+1;
           if(a>9){
             a=0;
           }
           Paint_DrawNum(100, 170, a , &Font24,BLUE, WHITE);
-          yellow_under(place);
+          //yellow_under(place);
         }
         else if (yValue > 750){
           a = a-1;
@@ -413,7 +438,7 @@ void yellow_under(int place){
 }
 
 void start_screen(){
-  Paint_DrawString_EN(20, 10, "TEMP in 'C ", &Font24,GRAY, WHITE);
+  Paint_DrawString_EN(20, 10, "TEMP. in 'C ", &Font20,GRAY, WHITE);
   Paint_DrawLine(0, 40, 320, 40, BLACK,   DOT_PIXEL_2X2,LINE_STYLE_SOLID);
   Paint_DrawString_EN(20, 60, "Current temp:", &Font20,GRAY, WHITE);
   Paint_DrawLine(0, 125, 320, 125, BLACK,   DOT_PIXEL_2X2,LINE_STYLE_SOLID);
@@ -442,7 +467,7 @@ void set_temp_screen(){
 }
 
 //--------------------------function for BUTTON1 VALUE INCREMENT ----------------------
-void press_button1_inc(){
+/*void press_button1_inc(){
   if (digitalRead(BUTTON_PIN1) == 0){
     if (digitalRead(BUTTON_PIN1) == 1){
       x++;
@@ -450,7 +475,7 @@ void press_button1_inc(){
     }
     
   }
-}
+}*/
 
 //-------------------------function for BUTTON1 PRESS------------------------
 /*void press_button1(){
