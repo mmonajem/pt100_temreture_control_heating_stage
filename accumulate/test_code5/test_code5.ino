@@ -8,6 +8,7 @@ String setString= "";
 //int sensorReading = 1; // value read from the temperature sensor
 String fileNameString;
 File sensorData;
+File header;
 File countFile;
 long newName = 0;
 String file_number ;
@@ -83,7 +84,7 @@ double Setpoint ; // will be the desired value
 double Input; // photo sensor
 double Output ; //LED
 //PID parameters
-double Kp=0, Ki=10, Kd=0; 
+double Kp=5, Ki=10, Kd=10; 
  
 //create PID instance 
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
@@ -168,6 +169,16 @@ Serial.println("card initialized.");
     countFile.close();
   }
   fileNameString = "DATA_"+String(file_number)+".csv";
+  header = SD.open(fileNameString, FILE_WRITE);
+  if(header){
+    header.print("\n");
+    header.print("Temperature");
+    header.print("\t");
+    header.print("Target Temperature");
+    header.print("\t");
+    header.print("Time in millis()");
+    header.close();
+  }
   Paint_DrawString_EN(220, 10, "F:(" , &Font20,GRAY, WHITE);
   Paint_DrawNum(258, 10, temporary-1 , &Font20,GRAY, WHITE);
   Paint_DrawString_EN(300, 10, ")" , &Font20,GRAY, WHITE);
@@ -526,4 +537,27 @@ void saveData(){
    // sensorData.print(file_number);
     sensorData.close(); // close the file
     }
+}
+
+boolean findValueInFile(File file, String value) {
+  // Set file position to beginning
+  file.seek(0);
+
+  // Loop through file until value is found
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    if (line.indexOf(value) != -1) {
+      // Value is found in this line
+      return true;
+    }
+  }
+
+  // Value is not found in file
+  return false;
+}
+//--------------------function to map the voltage-----------------------
+
+int mapVoltage(int v){
+  int val = map(v, 0, 5, 0, 250);
+  return val;
 }
