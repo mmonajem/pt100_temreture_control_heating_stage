@@ -24,7 +24,7 @@ int valSet = 0;
 #define BUTTON_PIN2 3
 int bCount = 0;
 bool bToggle = 0;
-int temp =0;
+//int temp =0;
 float l = 0;
 volatile int buttonState = 0;
 volatile int buttonState2 = 0;
@@ -47,6 +47,7 @@ int d=0;
 int xValue = 0 ;
 int yValue = 0 ; 
 
+float temp;
 int n_array[4] = {0,0,0,0};
 void button_press1(){
   /**
@@ -153,11 +154,11 @@ void setup() {
   header = SD.open(fileNameString, FILE_WRITE);
   if(header){
     header.print("\n");
-    header.print("Temperature");
+    header.print("Temp.");
     header.print("\t");
-    header.print("Target Temperature");
+    header.print("Target Temp.");
     header.print("\t");
-    header.print("Time in millis()");
+    header.print("Time(millis)");
     header.close();
   }
   //-----------Read PID parameter from "par.txt" file from SD card-------------
@@ -167,7 +168,7 @@ void setup() {
     readParameters();
   }
   Paint_DrawString_EN(220, 10, "F:(" , &Font20,GRAY, WHITE);
-  Paint_DrawNum(258, 10, temporary-1 , &Font20,GRAY, WHITE);
+  Paint_DrawNum(258, 10, temporary , &Font20,GRAY, WHITE);
   Paint_DrawString_EN(300, 10, ")" , &Font20,GRAY, WHITE);
 }
 //-------------------------------------------------------------LOOP------------------------------------------------------------------------------------------------------------
@@ -342,7 +343,7 @@ void set_temp(){
   set_temp_screen();
     delay(50);
     
-    temp = 0;
+    //temp = 0;
     analogWrite(13,LOW);
     Paint_DrawNum(100, 170, n_array[0] , &Font24,BLUE, WHITE); // a
       Paint_DrawNum(120, 170, n_array[1] , &Font24,BLUE, WHITE); // b
@@ -354,6 +355,7 @@ void set_temp(){
       if (buttonState == 0){
         l = (1000*n_array[0])+(100*n_array[1])+(10*n_array[2])+n_array[3];
         //temp = (100*a)+(10*b)+c;
+        temp = l/10;
         break;
       }
       xValue = analogRead(A2);	
@@ -491,10 +493,10 @@ void saveData(){
   if (sensorData){
     sensorData.print("\n");
     sensorData.print(dataString);
-    sensorData.print("\t");
+    sensorData.print("\t \t");
     sensorData.print(setString);
-    sensorData.print("\t");
-    sensorData.print(millis());
+    sensorData.print("\t \t");
+    sensorData.print(currentMillis);
     //sensorData.print("\t");
    // sensorData.print(file_number);
     sensorData.close(); // close the file
